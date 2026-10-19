@@ -7,13 +7,7 @@ CREATE TABLE IF NOT EXISTS anggota (
 INSERT INTO anggota (route_id, nim, nama) VALUES
   ('m0', '103012400356', 'Faizul Afiat'),
   ('m1', '103012430017', 'Raynar Khalid Mahardika Sumarno'),
-  ('m2', '103012400081', 'Aryo Dwipa Maulana')
+  ('m2', '103012400081', 'Aryo Dwipa Maulana'),
+  ('m3', '103012430044', 'Zakiyah Nabilah Az Zahra'),
+  ('m4', '103012430064', 'Annisa Roslina Anwar')
 ON CONFLICT (route_id) DO NOTHING;
-
-CREATE TABLE IF NOT EXISTS guestbook (
-  id SERIAL PRIMARY KEY,
-  route_id VARCHAR(10) NOT NULL REFERENCES anggota(route_id),
-  nama VARCHAR(100) NOT NULL,
-  pesan TEXT NOT NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
