@@ -20,8 +20,8 @@ Aplikasi bersama untuk Tugas 1 (Pra-UTS) mata kuliah Komputasi Awan dan Terdistr
 | m0 (ketua) | Faizul 'Afiat | 103012400356 |
 | m1 | Raynar Khalid Mahardika Sumarno | 103012430017 |
 | m2 | Aryo Dwipa Maulana | 103012400081 |
-| m3 | _isi nama_ | _isi NIM_ |
-| m4 | _isi nama_ | _isi NIM_ |
+| m3 | Zakiyah Nabilah Az Zahra | 103012430044 |
+| m4 | Annisa Roslina Anwar | 103012430064 |
 
 ## Teknologi
 
