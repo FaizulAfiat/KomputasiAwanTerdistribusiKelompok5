@@ -1,0 +1,4 @@
+  config/db.php
+  identity.php
+  .env
+  *.log
