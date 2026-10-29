@@ -283,8 +283,7 @@ try {
                 <span class="brand-copy"><strong>q&amp;a room.</strong><small>ruang tanya santai</small></span>
             </a>
             <nav class="nav-links" aria-label="Navigasi">
-                <a href="daftar-pertanyaan.php" class="nav-link active">Pertanyaan</a>
-                <a href="#about" class="nav-link">Tentang</a>
+                <a href="daftar-pertanyaan.php" class="nav-link active">Daftar Pertanyaan</a>
             </nav>
             <div class="nav-actions">
                 <a href="../index.php" class="back-link">← Kembali ke Personal Page</a>
