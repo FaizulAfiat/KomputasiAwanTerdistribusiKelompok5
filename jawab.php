@@ -369,7 +369,7 @@ if ($pdo) {
                 <a class="hidden sm:inline-flex items-center gap-1 text-on-surface-variant hover:text-on-surface font-label-md text-label-md transition-colors py-1.5 px-3 rounded-full border-[1.5px] border-transparent hover:border-on-surface" href="../index.php">
                     <span>← Personal Page</span>
                 </a>
-                <a class="inline-flex items-center gap-1 px-3.5 py-1.5 rounded-full bg-surface-container-lowest text-on-surface font-label-md text-label-md font-bold border-[1.5px] border-on-surface shadow-[1.5px_1.5px_0px_#1c1b1b] hover:shadow-[3px_3px_0px_#1c1b1b] active:translate-x-[1px] active:translate-y-[1px] transition-all" href="tanya.php">
+                <a class="inline-flex items-center gap-1 px-3.5 py-1.5 rounded-full bg-surface-container-lowest text-on-surface font-label-md text-label-md font-bold border-[1.5px] border-on-surface shadow-[1.5px_1.5px_0px_#1c1b1b] hover:shadow-[3px_3px_0px_#1c1b1b] active:translate-x-[1px] active:translate-y-[1px] transition-all" href="form-tanya.php">
                     <span class="text-primary">✦</span>
                     <span>Tanya Baru</span>
                 </a>
@@ -692,7 +692,7 @@ if ($pdo) {
                             <p class="font-body-sm text-body-sm text-on-surface-variant max-w-md mx-auto mb-6">
                                 Basis data kelompok saat ini belum memiliki data pertanyaan. Anda dapat membuat pertanyaan baru melalui fitur Tanya.
                             </p>
-                            <a href="tanya.php" class="inline-flex items-center gap-2 font-label-lg text-label-lg px-6 py-2.5 rounded-full bg-primary-container text-on-surface font-bold border-[1.5px] border-on-surface shadow-[2px_2px_0px_#1c1b1b] hover:shadow-[4px_4px_0px_#1c1b1b] transition-all">
+                            <a href="form-tanya.php" class="inline-flex items-center gap-2 font-label-lg text-label-lg px-6 py-2.5 rounded-full bg-primary-container text-on-surface font-bold border-[1.5px] border-on-surface shadow-[2px_2px_0px_#1c1b1b] hover:shadow-[4px_4px_0px_#1c1b1b] transition-all">
                                 <span>Ajukan Pertanyaan Pertama</span>
                                 <span>↗</span>
                             </a>
