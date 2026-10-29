@@ -3,6 +3,7 @@
 // Aplikasi Tanya Jawab (Q&A) - Kelompok 05
 // Fitur: Jawaban & Moderasi (Form Jawab, Tampilan Jawaban, Moderasi Pertanyaan)
 // Branch: fitur/jawaban
+// Design System: Stitch UI (Editorial Neo-Brutalist / Tactile Paper)
 // ==============================================================================
 
 ini_set('display_errors', 1);
@@ -62,7 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pdo) {
                     $stmtMod->execute([':id' => $pertanyaanId]);
                     $statusBaru = $stmtMod->fetchColumn();
 
-                    $msg = $statusBaru ? 'Pertanyaan berhasil disembunyikan (moderasi aktif).' : 'Pertanyaan berhasil dipulihkan (tampil kembali).';
+                    $msg = $statusBaru ? 'Pertanyaan berhasil disembunyikan (moderasi aktif).' : 'Pertanyaan berhasil dipulihkan (tampil kembali ke publik).';
 
                     if ($isAjax) {
                         header('Content-Type: application/json; charset=utf-8');
@@ -70,7 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pdo) {
                         exit;
                     }
 
-                    header("Location: jawab.php?id={$pertanyaanId}&msg=" . urlencode($msg) . "&type=success");
+                    header("Location: jawab.php?id={$pertanyaanId}&msg=" . urlencode($msg) . "&type=" . ($statusBaru ? 'warning' : 'success'));
                     exit;
                 } catch (Throwable $e) {
                     $alert = 'Gagal melakukan moderasi: ' . $e->getMessage();
@@ -98,7 +99,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pdo) {
                         $stmtR = $pdo->prepare("SELECT route_id FROM anggota WHERE route_id = :route_id");
                         $stmtR->execute([':route_id' => $routeId]);
                         if (!$stmtR->fetch()) {
-                            // Fallback jika route_id tidak ada
                             $routeId = MEMBER_ROUTE;
                         }
 
@@ -113,14 +113,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pdo) {
                             ':isi' => $isi
                         ]);
 
-                        $msg = 'Jawaban berhasil dikirim dan tersimpan di database!';
+                        $msg = 'Jawaban berhasil dikirim dan tersimpan di database PostgreSQL!';
                         if ($isAjax) {
                             header('Content-Type: application/json; charset=utf-8');
                             echo json_encode(['success' => true, 'message' => $msg]);
                             exit;
                         }
 
-                        header("Location: jawab.php?id={$pertanyaanId}&msg=" . urlencode($msg) . "&type=success#jawaban-terbaru");
+                        header("Location: jawab.php?id={$pertanyaanId}&status=sukses&msg=" . urlencode($msg) . "&type=success#jawaban-terbaru");
                         exit;
                     } catch (Throwable $e) {
                         $alert = 'Gagal menyimpan jawaban: ' . $e->getMessage();
@@ -151,8 +151,16 @@ $pertanyaanId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 $pertanyaan = null;
 $daftarJawaban = [];
 $semuaPertanyaan = [];
+$daftarAnggota = [];
 
 if ($pdo) {
+    // Ambil daftar anggota untuk opsi pemilihan route jika ingin simulasi
+    try {
+        $daftarAnggota = $pdo->query("SELECT route_id, nama, nim FROM anggota ORDER BY route_id ASC")->fetchAll();
+    } catch (Throwable $e) {
+        $daftarAnggota = [];
+    }
+
     if ($pertanyaanId > 0) {
         // Ambil detail pertanyaan beserta identitas penanya
         $stmtP = $pdo->prepare("
@@ -184,7 +192,7 @@ if ($pdo) {
             FROM pertanyaan p
             LEFT JOIN anggota a ON p.route_id = a.route_id
             ORDER BY p.created_at DESC
-            LIMIT 25
+            LIMIT 30
         ");
         if ($stmtList) {
             $semuaPertanyaan = $stmtList->fetchAll();
@@ -195,712 +203,667 @@ if ($pdo) {
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= $pertanyaan ? 'Jawab: ' . htmlspecialchars(mb_substr($pertanyaan['isi'], 0, 40)) . '...' : 'Fitur Jawaban & Moderasi' ?> - Kelompok 05</title>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <meta content="web_standard" name="shell-type"/>
+    <title><?= $pertanyaan ? 'Jawab: ' . htmlspecialchars(mb_substr($pertanyaan['isi'], 0, 45)) . '...' : 'Fitur Jawaban & Moderasi' ?> - Kelompok 05</title>
     
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+    <!-- Google Fonts: Newsreader (Editorial Serif) & Plus Jakarta Sans -->
+    <link href="https://fonts.googleapis.com" rel="preconnect"/>
+    <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+    <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400..700;1,6..72,400..700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
 
     <style>
-        :root {
-            --bg-base: #090a0f;
-            --bg-card: rgba(18, 20, 29, 0.88);
-            --bg-card-subtle: #141724;
-            --border-color: rgba(255, 255, 255, 0.09);
-            --border-hover: rgba(99, 102, 241, 0.45);
-            --accent-primary: #6366f1;
-            --accent-cyan: #38bdf8;
-            --accent-emerald: #10b981;
-            --accent-amber: #f59e0b;
-            --accent-red: #ef4444;
-            --text-main: #f8fafc;
-            --text-muted: #94a3b8;
-            --text-dim: #64748b;
-            --font-sans: 'Plus Jakarta Sans', sans-serif;
-            --font-mono: 'Space Grotesk', monospace;
+        @layer base {
+            html, body { margin: 0; padding: 0; }
+            body { overscroll-behavior: none; }
+            main > :first-child { margin-top: 0 !important; }
+            main > :last-child { margin-bottom: 0 !important; }
         }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
-        body {
-            background-color: var(--bg-base);
-            color: var(--text-main);
-            font-family: var(--font-sans);
-            line-height: 1.6;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            background-image: 
-                radial-gradient(circle at 10% 10%, rgba(99, 102, 241, 0.1) 0%, transparent 40%),
-                radial-gradient(circle at 90% 20%, rgba(56, 189, 248, 0.08) 0%, transparent 40%);
-        }
-
-        /* Banner Server */
-        .server-banner {
-            background: linear-gradient(90deg, #07080d 0%, #111424 50%, #07080d 100%);
-            border-bottom: 1px solid rgba(99, 102, 241, 0.25);
-            padding: 10px 16px;
-            font-size: 0.85rem;
+        /* Custom styled served-by banner inside stitch layout */
+        .served-by {
+            padding: 8px 16px;
             text-align: center;
-        }
-
-        .server-banner .served-by {
-            color: #e2e8f0;
-            font-weight: 500;
-        }
-
-        /* Header Nav */
-        header {
-            background: rgba(9, 10, 15, 0.8);
-            backdrop-filter: blur(16px);
-            border-bottom: 1px solid var(--border-color);
-            position: sticky;
-            top: 0;
-            z-index: 100;
-        }
-
-        .header-container {
-            max-width: 900px;
-            margin: auto;
-            padding: 14px 20px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            gap: 12px;
-        }
-
-        .logo-group {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            text-decoration: none;
-            color: #ffffff;
+            font-size: 12px;
             font-weight: 700;
-        }
-
-        .badge-app {
-            background: linear-gradient(135deg, #4f46e5 0%, #0284c7 100%);
-            color: #ffffff;
-            padding: 4px 8px;
-            border-radius: 6px;
-            font-size: 0.75rem;
-            font-family: var(--font-mono);
-        }
-
-        .nav-links a {
-            color: var(--text-muted);
-            text-decoration: none;
-            font-size: 0.88rem;
-            margin-left: 14px;
-            transition: color 0.2s;
-        }
-
-        .nav-links a:hover {
-            color: #ffffff;
-        }
-
-        /* Container & Card */
-        main {
-            max-width: 900px;
-            width: 100%;
-            margin: 28px auto 60px auto;
-            padding: 0 20px;
-            flex: 1;
-        }
-
-        .card {
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: 16px;
-            padding: 24px;
-            margin-bottom: 24px;
-            box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
-            backdrop-filter: blur(12px);
-        }
-
-        /* Alert Notification */
-        .alert-box {
-            padding: 14px 18px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-            font-size: 0.9rem;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .alert-success {
-            background: rgba(16, 185, 129, 0.15);
-            border: 1px solid rgba(16, 185, 129, 0.4);
-            color: #34d399;
-        }
-
-        .alert-error {
-            background: rgba(239, 68, 68, 0.15);
-            border: 1px solid rgba(239, 68, 68, 0.4);
-            color: #f87171;
-        }
-
-        /* Question Box Styling */
-        .question-header {
-            display: flex;
-            align-items: flex-start;
-            justify-content: space-between;
-            gap: 16px;
-            border-bottom: 1px solid var(--border-color);
-            padding-bottom: 16px;
-            margin-bottom: 16px;
-        }
-
-        .question-meta {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            flex-wrap: wrap;
-            font-size: 0.82rem;
-            color: var(--text-dim);
-            font-family: var(--font-mono);
-        }
-
-        .route-pill {
-            background: rgba(99, 102, 241, 0.15);
-            color: #a5b4fc;
-            border: 1px solid rgba(99, 102, 241, 0.3);
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-size: 0.75rem;
-            font-weight: 700;
-        }
-
-        .moderasi-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 3px 10px;
-            border-radius: 999px;
-            font-size: 0.75rem;
-            font-weight: 600;
-        }
-
-        .badge-active {
-            background: rgba(16, 185, 129, 0.12);
-            color: #34d399;
-            border: 1px solid rgba(16, 185, 129, 0.3);
-        }
-
-        .badge-hidden {
-            background: rgba(245, 158, 11, 0.15);
-            color: #fbbf24;
-            border: 1px solid rgba(245, 158, 11, 0.4);
-        }
-
-        .question-text {
-            font-size: 1.15rem;
-            font-weight: 600;
-            color: #ffffff;
-            line-height: 1.6;
-            margin-bottom: 16px;
-            white-space: pre-wrap;
-            word-break: break-word;
-        }
-
-        /* Moderation Button */
-        .btn-moderasi {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid var(--border-color);
-            color: #e2e8f0;
-            padding: 7px 14px;
-            border-radius: 8px;
-            font-size: 0.82rem;
-            font-weight: 600;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            transition: all 0.2s;
-        }
-
-        .btn-moderasi:hover {
-            background: rgba(239, 68, 68, 0.2);
-            border-color: rgba(239, 68, 68, 0.5);
-            color: #fca5a5;
-        }
-
-        /* Answers List (Tampilan Jawaban) */
-        .section-heading {
-            font-size: 1.25rem;
-            font-weight: 700;
-            color: #ffffff;
-            margin-bottom: 16px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .answer-card {
-            background: var(--bg-card-subtle);
-            border: 1px solid var(--border-color);
-            border-left: 3px solid var(--accent-primary);
-            border-radius: 12px;
-            padding: 18px;
-            margin-bottom: 16px;
-            transition: transform 0.2s;
-        }
-
-        .answer-card:hover {
-            transform: translateX(3px);
-            border-color: var(--border-hover);
-        }
-
-        .answer-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 10px;
-            font-size: 0.82rem;
-            color: var(--text-dim);
-            flex-wrap: wrap;
-            gap: 6px;
-        }
-
-        .answerer-info {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            color: #e2e8f0;
-            font-weight: 600;
-        }
-
-        .answer-body {
-            color: #cbd5e1;
-            font-size: 0.95rem;
-            line-height: 1.6;
-            white-space: pre-wrap;
-            word-break: break-word;
-        }
-
-        .empty-answers {
-            text-align: center;
-            padding: 36px 20px;
-            color: var(--text-muted);
-            background: rgba(255, 255, 255, 0.02);
-            border-radius: 12px;
-            border: 1px dashed var(--border-color);
-        }
-
-        /* Form Jawab */
-        .form-title {
-            font-size: 1.15rem;
-            font-weight: 700;
-            color: #ffffff;
-            margin-bottom: 8px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .form-desc {
-            font-size: 0.85rem;
-            color: var(--text-muted);
-            margin-bottom: 16px;
-        }
-
-        .form-group {
-            margin-bottom: 16px;
-        }
-
-        .form-group label {
-            display: block;
-            font-size: 0.85rem;
-            font-weight: 600;
-            color: #cbd5e1;
-            margin-bottom: 6px;
-        }
-
-        .form-control {
-            width: 100%;
-            background: #090a0f;
-            border: 1px solid var(--border-color);
-            border-radius: 10px;
-            padding: 12px 14px;
-            font-size: 0.92rem;
-            color: #ffffff;
-            font-family: inherit;
-            outline: none;
-            transition: border-color 0.2s, box-shadow 0.2s;
-        }
-
-        .form-control:focus {
-            border-color: var(--accent-primary);
-            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25);
-        }
-
-        textarea.form-control {
-            resize: vertical;
-            min-height: 120px;
-        }
-
-        .form-meta-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            font-size: 0.8rem;
-            color: var(--text-dim);
-            margin-top: 6px;
-        }
-
-        .btn-submit {
-            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
-            color: #ffffff;
-            border: none;
-            border-radius: 10px;
-            padding: 12px 24px;
-            font-size: 0.92rem;
-            font-weight: 600;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35);
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-
-        .btn-submit:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
-        }
-
-        .btn-submit:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        /* Question selection list styling */
-        .q-list-item {
-            background: var(--bg-card-subtle);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 18px;
-            margin-bottom: 12px;
-            text-decoration: none;
-            color: inherit;
-            display: block;
-            transition: all 0.2s;
-        }
-
-        .q-list-item:hover {
-            border-color: var(--border-hover);
-            transform: translateY(-2px);
-            background: rgba(30, 34, 52, 0.8);
-        }
-
-        .q-list-title {
-            font-size: 1.05rem;
-            font-weight: 600;
-            color: #ffffff;
-            margin-bottom: 8px;
-        }
-
-        footer {
-            border-top: 1px solid var(--border-color);
-            padding: 24px;
-            text-align: center;
-            font-size: 0.82rem;
-            color: var(--text-dim);
-            background: #06070a;
+            letter-spacing: 0.02em;
+            color: #1c1b1b;
         }
     </style>
-</head>
-<body>
 
-    <!-- 1. SERVED BY BANNER -->
-    <div class="server-banner">
+    <!-- Tailwind CSS with Stitch Design System Tokens -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "tertiary": "#665e43",
+                        "surface-bright": "#fcf9f8",
+                        "surface-container-high": "#eae7e7",
+                        "on-tertiary": "#ffffff",
+                        "surface-container-highest": "#e5e2e1",
+                        "on-tertiary-fixed-variant": "#4e462d",
+                        "on-secondary": "#ffffff",
+                        "on-surface": "#1c1b1b",
+                        "on-tertiary-container": "#4a4229",
+                        "on-error": "#ffffff",
+                        "surface-container-low": "#f6f3f2",
+                        "on-secondary-fixed-variant": "#54433c",
+                        "on-tertiary-fixed": "#211b06",
+                        "on-surface-variant": "#55433c",
+                        "background": "#fcf9f8",
+                        "tertiary-container": "#baaf8f",
+                        "surface": "#fcf9f8",
+                        "secondary-container": "#f6ddd4",
+                        "on-primary-fixed-variant": "#7b2e0e",
+                        "surface-container-lowest": "#ffffff",
+                        "on-primary-container": "#762a0a",
+                        "on-secondary-fixed": "#251913",
+                        "secondary": "#6c5b53",
+                        "inverse-primary": "#ffb59b",
+                        "secondary-fixed-dim": "#d9c2b8",
+                        "on-secondary-container": "#736159",
+                        "on-background": "#1c1b1b",
+                        "primary-fixed-dim": "#ffb59b",
+                        "outline-variant": "#dcc1b8",
+                        "inverse-surface": "#313030",
+                        "error-container": "#ffdad6",
+                        "tertiary-fixed": "#eee2bf",
+                        "on-primary": "#ffffff",
+                        "error": "#ba1a1a",
+                        "primary": "#9a4523",
+                        "outline": "#88726b",
+                        "on-error-container": "#93000a",
+                        "secondary-fixed": "#f6ddd4",
+                        "on-primary-fixed": "#380d00",
+                        "primary-fixed": "#ffdbcf",
+                        "surface-tint": "#9a4523",
+                        "surface-dim": "#dcd9d9",
+                        "inverse-on-surface": "#f3f0ef",
+                        "tertiary-fixed-dim": "#d2c6a5",
+                        "surface-variant": "#e5e2e1",
+                        "primary-container": "#ff936b",
+                        "surface-container": "#f0eded"
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    spacing: {
+                        "space-xs": "0.25rem",
+                        "gutter-mobile": "1rem",
+                        "space-lg": "1.5rem",
+                        "space-sm": "0.5rem",
+                        "space-xl": "2.5rem",
+                        "space-md": "1rem",
+                        "margin-mobile": "1.25rem",
+                        "margin": "3rem",
+                        "gutter": "1.5rem"
+                    },
+                    fontFamily: {
+                        "display-xl-mobile": ["Newsreader", "serif"],
+                        "label-sm": ["Plus Jakarta Sans", "sans-serif"],
+                        "body-md": ["Plus Jakarta Sans", "sans-serif"],
+                        "headline-lg": ["Newsreader", "serif"],
+                        "headline-md": ["Newsreader", "serif"],
+                        "headline-lg-mobile": ["Newsreader", "serif"],
+                        "headline-sm": ["Newsreader", "serif"],
+                        "body-lg": ["Plus Jakarta Sans", "sans-serif"],
+                        "label-md": ["Plus Jakarta Sans", "sans-serif"],
+                        "body-sm": ["Plus Jakarta Sans", "sans-serif"],
+                        "display-xl": ["Newsreader", "serif"],
+                        "label-lg": ["Plus Jakarta Sans", "sans-serif"]
+                    },
+                    fontSize: {
+                        "display-xl-mobile": ["38px", { lineHeight: "44px", letterSpacing: "-0.01em", fontWeight: "500" }],
+                        "label-sm": ["11px", { lineHeight: "14px", letterSpacing: "0.04em", fontWeight: "700" }],
+                        "body-md": ["15px", { lineHeight: "24px", fontWeight: "400" }],
+                        "headline-lg": ["40px", { lineHeight: "48px", letterSpacing: "-0.015em", fontWeight: "600" }],
+                        "headline-md": ["28px", { lineHeight: "36px", fontWeight: "600" }],
+                        "headline-lg-mobile": ["28px", { lineHeight: "34px", letterSpacing: "-0.01em", fontWeight: "600" }],
+                        "headline-sm": ["22px", { lineHeight: "30px", fontWeight: "500" }],
+                        "body-lg": ["18px", { lineHeight: "28px", fontWeight: "400" }],
+                        "label-md": ["12px", { lineHeight: "16px", letterSpacing: "0.02em", fontWeight: "600" }],
+                        "body-sm": ["13px", { lineHeight: "20px", fontWeight: "400" }],
+                        "display-xl": ["56px", { lineHeight: "64px", letterSpacing: "-0.02em", fontWeight: "500" }],
+                        "label-lg": ["14px", { lineHeight: "20px", letterSpacing: "0.01em", fontWeight: "600" }]
+                    }
+                }
+            }
+        };
+    </script>
+</head>
+<body class="bg-surface text-on-surface min-h-screen flex flex-col font-body-md text-body-md">
+
+    <!-- 1. BANNER IDENTITAS KELOMPOK (served_by.php) -->
+    <div class="fixed top-0 left-0 right-0 w-full z-[60] bg-surface-container-low border-b-[1.5px] border-on-surface shadow-[0_2px_0px_#1c1b1b]">
         <?php 
-        if (file_exists(__DIR__ . '/partials/served_by.php')) {
-            include __DIR__ . '/partials/served_by.php';
+        $served_by_path = __DIR__ . '/partials/served_by.php';
+        if (file_exists($served_by_path)) {
+            include $served_by_path;
         } else {
-            echo "Anda dilayani oleh laman " . htmlspecialchars(MEMBER_NAMA, ENT_QUOTES, 'UTF-8') . " (" . htmlspecialchars(MEMBER_NIM, ENT_QUOTES, 'UTF-8') . ")";
+            echo '<div class="p-2 text-center text-xs font-bold">Dilayani oleh: ' . htmlspecialchars(MEMBER_NAMA) . ' (' . htmlspecialchars(MEMBER_ROUTE) . ')</div>';
         }
         ?>
     </div>
 
-    <!-- 2. HEADER -->
-    <header>
-        <div class="header-container">
-            <a href="jawab.php" class="logo-group">
-                <span class="badge-app">Q&A Kelompok 05</span>
-                <span>Fitur Jawaban & Moderasi</span>
-            </a>
-            <div class="nav-links">
-                <a href="../index.php">&larr; Kembali ke Personal Page</a>
-                <?php if (file_exists(__DIR__ . '/index.php')): ?>
-                    <a href="index.php">Daftar Pertanyaan (app/)</a>
-                <?php endif; ?>
+    <!-- 2. STICKY HEADER DENGAN GAYA STITCH -->
+    <header class="fixed top-10 left-0 right-0 w-full z-50 bg-surface/95 backdrop-blur-md border-b-[1.5px] border-on-surface shadow-[0_2px_0px_#1c1b1b]">
+        <div class="h-16 max-w-[1100px] mx-auto px-gutter flex items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <a href="jawab.php" class="flex flex-col text-inherit no-underline">
+                    <div class="flex items-center gap-1.5">
+                        <span class="font-headline-sm text-headline-sm text-on-surface tracking-tight font-semibold">q&a room<span class="text-primary">.</span></span>
+                        <span class="inline-block px-2 py-0.5 rounded-full bg-primary-container text-on-surface font-label-sm text-label-sm uppercase tracking-wider border-[1px] border-on-surface shadow-[1px_1px_0px_#1c1b1b]">Jawaban</span>
+                    </div>
+                    <span class="font-label-sm text-label-sm text-on-surface-variant italic">Fitur Jawaban & Moderasi (Kelompok 05)</span>
+                </a>
+            </div>
+            
+            <div class="flex items-center gap-2 sm:gap-3">
+                <a class="hidden sm:inline-flex items-center gap-1 text-on-surface-variant hover:text-on-surface font-label-md text-label-md transition-colors py-1.5 px-3 rounded-full border-[1.5px] border-transparent hover:border-on-surface" href="../index.php">
+                    <span>← Personal Page</span>
+                </a>
+                <a class="inline-flex items-center gap-1 px-3.5 py-1.5 rounded-full bg-surface-container-lowest text-on-surface font-label-md text-label-md font-bold border-[1.5px] border-on-surface shadow-[1.5px_1.5px_0px_#1c1b1b] hover:shadow-[3px_3px_0px_#1c1b1b] active:translate-x-[1px] active:translate-y-[1px] transition-all" href="tanya.php">
+                    <span class="text-primary">✦</span>
+                    <span>Tanya Baru</span>
+                </a>
+                <a class="inline-flex items-center gap-1 px-3.5 py-1.5 rounded-full bg-secondary-container text-on-surface font-label-md text-label-md font-bold border-[1.5px] border-on-surface shadow-[1.5px_1.5px_0px_#1c1b1b] hover:shadow-[3px_3px_0px_#1c1b1b] active:translate-x-[1px] active:translate-y-[1px] transition-all" href="jawab.php">
+                    <span>Semua Pertanyaan</span>
+                </a>
             </div>
         </div>
     </header>
 
-    <main>
-        <!-- Notifikasi Pesan -->
-        <?php if ($alert): ?>
-            <div class="alert-box <?= $alertType === 'success' ? 'alert-success' : 'alert-error' ?>" role="alert">
-                <span><?= htmlspecialchars($alert, ENT_QUOTES, 'UTF-8') ?></span>
-                <button onclick="this.parentElement.style.display='none'" style="background:none; border:none; color:inherit; cursor:pointer; font-size:1.1rem;">&times;</button>
-            </div>
-        <?php endif; ?>
+    <!-- 3. MAIN CONTENT CONTAINER -->
+    <main class="w-full pt-32 flex-grow bg-surface pb-16">
+        <div class="max-w-[1000px] mx-auto px-gutter py-space-md">
 
-        <?php if ($dbError): ?>
-            <div class="alert-box alert-error">
-                <strong>Koneksi Database Bermasalah:</strong> <?= htmlspecialchars($dbError, ENT_QUOTES, 'UTF-8') ?>
-            </div>
-        <?php endif; ?>
-
-        <?php if ($pertanyaan): ?>
-            <!-- ===============================================================
-                 A. DETAIL PERTANYAAN & MODERASI
-                 =============================================================== -->
-            <section class="card">
-                <div class="question-header">
-                    <div>
-                        <div class="question-meta">
-                            <span>Oleh: <strong style="color:#e2e8f0;"><?= htmlspecialchars($pertanyaan['nama_anggota'] ?: $pertanyaan['nama'], ENT_QUOTES, 'UTF-8') ?></strong></span>
-                            <span>&bull;</span>
-                            <span class="route-pill">Node: <?= htmlspecialchars($pertanyaan['route_id'], ENT_QUOTES, 'UTF-8') ?></span>
-                            <span>&bull;</span>
-                            <span><?= date('d M Y, H:i', strtotime($pertanyaan['created_at'])) ?> WIB</span>
-                            <span>&bull;</span>
-                            <span>Upvote: <strong><?= (int)$pertanyaan['upvote'] ?></strong></span>
+            <!-- Flash Alert Box (Success / Error / Info) -->
+            <?php if ($alert): ?>
+                <div class="relative mb-6 p-4 rounded-xl <?= $alertType === 'error' ? 'bg-[#FFDAD6] text-[#93000A]' : ($alertType === 'warning' ? 'bg-[#FFF3CD] text-[#856404]' : 'bg-[#DDECCF] text-[#244822]') ?> border-[1.5px] border-on-surface shadow-[3px_3px_0px_#1c1b1b] flex items-start justify-between gap-3 transition-all duration-300" id="flashAlert">
+                    <div class="flex items-start gap-3">
+                        <div class="w-7 h-7 rounded-full <?= $alertType === 'error' ? 'bg-[#93000A] text-[#FFDAD6]' : ($alertType === 'warning' ? 'bg-[#856404] text-[#FFF3CD]' : 'bg-[#244822] text-[#DDECCF]') ?> flex items-center justify-center shrink-0 text-sm font-bold shadow-[1px_1px_0px_#1c1b1b]">
+                            <?= $alertType === 'error' ? '✕' : ($alertType === 'warning' ? '!' : '✓') ?>
                         </div>
-                    </div>
-
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <!-- Status Moderasi -->
-                        <?php if ($pertanyaan['disembunyikan']): ?>
-                            <span class="moderasi-badge badge-hidden" title="Pertanyaan disembunyikan dari daftar publik">
-                                &#128065; Disembunyikan
+                        <div class="flex flex-col">
+                            <span class="font-label-md text-label-md font-bold text-[#1c1b1b] tracking-wide">
+                                <?= $alertType === 'error' ? 'Pemberitahuan Kesalahan' : ($alertType === 'warning' ? 'Pemberitahuan Moderasi' : 'Operasi Berhasil') ?>
                             </span>
-                        <?php else: ?>
-                            <span class="moderasi-badge badge-active" title="Pertanyaan aktif dan publik">
-                                &#9679; Publik
+                            <p class="font-body-sm text-body-sm mt-0.5">
+                                <?= htmlspecialchars($alert, ENT_QUOTES, 'UTF-8') ?>
+                            </p>
+                        </div>
+                    </div>
+                    <button class="hover:opacity-75 p-1 rounded-full transition-colors leading-none font-bold" onclick="document.getElementById('flashAlert').remove()" type="button">✕</button>
+                </div>
+            <?php endif; ?>
+
+            <?php if ($dbError): ?>
+                <div class="relative mb-6 p-4 rounded-xl bg-[#FFDAD6] text-[#93000A] border-[1.5px] border-on-surface shadow-[3px_3px_0px_#1c1b1b]">
+                    <strong>Koneksi Database Bermasalah:</strong> <?= htmlspecialchars($dbError, ENT_QUOTES, 'UTF-8') ?>
+                </div>
+            <?php endif; ?>
+
+            <?php if ($pertanyaan): ?>
+                <!-- ===============================================================
+                     TAMPILAN A: DETAIL PERTANYAAN, MODERASI, DAN JAWABAN
+                     =============================================================== -->
+
+                <!-- 1. KARTU PERTANYAAN (EDITORIAL STITCH CARD) -->
+                <section class="relative bg-surface-container-lowest border-[1.5px] border-on-surface rounded-2xl p-6 sm:p-8 shadow-[4px_4px_0px_#1c1b1b] mb-8 overflow-hidden">
+                    <div class="flex flex-wrap items-center justify-between gap-3 pb-4 border-b-[1.5px] border-on-surface/15 mb-6">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-secondary-container text-on-surface font-label-sm text-label-sm font-bold border-[1px] border-on-surface">
+                                <span class="text-primary">✦</span>
+                                <span>Oleh: <?= htmlspecialchars($pertanyaan['nama_anggota'] ?: $pertanyaan['nama'], ENT_QUOTES, 'UTF-8') ?></span>
                             </span>
-                        <?php endif; ?>
+                            <span class="px-2.5 py-1 rounded-full bg-surface-container text-on-surface font-label-sm text-label-sm font-mono border-[1px] border-on-surface">
+                                Node: <?= htmlspecialchars($pertanyaan['route_id'], ENT_QUOTES, 'UTF-8') ?>
+                            </span>
+                            <span class="px-2.5 py-1 rounded-full bg-surface-container-low text-on-surface-variant font-label-sm text-label-sm border-[1px] border-on-surface/40">
+                                <?= date('d M Y, H:i', strtotime($pertanyaan['created_at'])) ?> WIB
+                            </span>
+                            <span class="px-2.5 py-1 rounded-full bg-primary-container text-on-surface font-label-sm text-label-sm font-bold border-[1px] border-on-surface shadow-[1px_1px_0px_#1c1b1b]">
+                                ▲ <?= (int)$pertanyaan['upvote'] ?> Upvote
+                            </span>
+                        </div>
 
-                        <!-- Tombol Moderasi (Toggle) -->
-                        <form method="POST" action="jawab.php" onsubmit="return confirm('Apakah Anda yakin ingin <?= $pertanyaan['disembunyikan'] ? 'menampilkan kembali' : 'menyembunyikan' ?> pertanyaan ini?');" style="margin:0;">
-                            <input type="hidden" name="action" value="moderasi">
-                            <input type="hidden" name="pertanyaan_id" value="<?= (int)$pertanyaan['id'] ?>">
-                            <button type="submit" class="btn-moderasi">
-                                <?= $pertanyaan['disembunyikan'] ? '&#128065; Pulihkan' : '&#128584; Sembunyikan' ?>
-                            </button>
-                        </form>
-                    </div>
-                </div>
+                        <!-- MODERASI BADGE & TOGGLE BUTTON -->
+                        <div class="flex items-center gap-2.5">
+                            <?php if ($pertanyaan['disembunyikan']): ?>
+                                <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-[#FFDAD6] text-[#93000A] font-label-sm text-label-sm font-bold border-[1.5px] border-on-surface shadow-[1px_1px_0px_#1c1b1b]">
+                                    <span>🔒 Disembunyikan</span>
+                                </span>
+                            <?php else: ?>
+                                <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-[#DDECCF] text-[#244822] font-label-sm text-label-sm font-bold border-[1.5px] border-on-surface shadow-[1px_1px_0px_#1c1b1b]">
+                                    <span>● Publik</span>
+                                </span>
+                            <?php endif; ?>
 
-                <div class="question-text">
-                    <?= nl2br(htmlspecialchars($pertanyaan['isi'], ENT_QUOTES, 'UTF-8')) ?>
-                </div>
-
-                <?php if ($pertanyaan['disembunyikan']): ?>
-                    <div style="background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 8px; padding: 10px 14px; font-size: 0.85rem; color: #fbbf24;">
-                        <strong>Catatan Moderasi:</strong> Pertanyaan ini saat ini berstatus <em>disembunyikan</em>. Anda dapat memulihkannya kapan saja menggunakan tombol di atas.
-                    </div>
-                <?php endif; ?>
-            </section>
-
-            <!-- ===============================================================
-                 B. TAMPILAN DAFTAR JAWABAN
-                 =============================================================== -->
-            <section class="card" id="jawaban-terbaru">
-                <div class="section-heading">
-                    <span>Daftar Jawaban (<?= count($daftarJawaban) ?>)</span>
-                    <span style="font-size: 0.85rem; color: var(--text-dim); font-weight: normal;">Diurutkan dari terlama ke terbaru</span>
-                </div>
-
-                <?php if (empty($daftarJawaban)): ?>
-                    <div class="empty-answers">
-                        <div style="font-size: 2rem; margin-bottom: 8px;">&#128172;</div>
-                        <h4 style="color: #f1f5f9; margin-bottom: 4px;">Belum Ada Jawaban</h4>
-                        <p style="font-size: 0.85rem;">Pertanyaan ini belum dijawab. Tuliskan jawaban pertama Anda pada formulir di bawah ini.</p>
-                    </div>
-                <?php else: ?>
-                    <div class="answers-container">
-                        <?php foreach ($daftarJawaban as $index => $j): ?>
-                            <article class="answer-card">
-                                <div class="answer-header">
-                                    <div class="answerer-info">
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" color="#38bdf8"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-                                        <span><?= htmlspecialchars($j['nama_penjawab'] ?: 'Anggota ' . $j['route_id'], ENT_QUOTES, 'UTF-8') ?></span>
-                                        <span class="route-pill">Node: <?= htmlspecialchars($j['route_id'], ENT_QUOTES, 'UTF-8') ?></span>
-                                    </div>
-                                    <span style="font-family: var(--font-mono);"><?= date('d M Y, H:i', strtotime($j['created_at'])) ?> WIB</span>
-                                </div>
-                                <div class="answer-body">
-                                    <?= nl2br(htmlspecialchars($j['isi'], ENT_QUOTES, 'UTF-8')) ?>
-                                </div>
-                            </article>
-                        <?php endforeach; ?>
-                    </div>
-                <?php endif; ?>
-            </section>
-
-            <!-- ===============================================================
-                 C. FORM JAWAB
-                 =============================================================== -->
-            <section class="card">
-                <h3 class="form-title">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" color="#818cf8"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-                    Tuliskan Jawaban Anda
-                </h3>
-                <p class="form-desc">
-                    Jawaban Anda akan dicatat dengan <code>route_id = '<?= htmlspecialchars(MEMBER_ROUTE, ENT_QUOTES, 'UTF-8') ?>'</code> dan disinkronkan ke dalam basis data bersama kelompok.
-                </p>
-
-                <form id="formJawab" method="POST" action="jawab.php" novalidate>
-                    <input type="hidden" name="action" value="jawab">
-                    <input type="hidden" name="pertanyaan_id" value="<?= (int)$pertanyaan['id'] ?>">
-                    <input type="hidden" name="route_id" value="<?= htmlspecialchars(MEMBER_ROUTE, ENT_QUOTES, 'UTF-8') ?>">
-
-                    <div class="form-group">
-                        <label for="inputIsi">Isi Jawaban:</label>
-                        <textarea 
-                            name="isi" 
-                            id="inputIsi" 
-                            class="form-control" 
-                            placeholder="Tuliskan jawaban yang jelas, informatif, dan membantu..." 
-                            required 
-                            minlength="3" 
-                            maxlength="5000"></textarea>
-                        <div class="form-meta-row">
-                            <span id="validationMsg" style="color: #f87171; font-weight: 500;"></span>
-                            <span id="charCounter">0 / 5000 karakter</span>
+                            <!-- Tombol Moderasi -->
+                            <form method="POST" action="jawab.php" onsubmit="return confirm('Apakah Anda yakin ingin <?= $pertanyaan['disembunyikan'] ? 'menampilkan kembali pertanyaan ini ke publik' : 'menyembunyikan pertanyaan ini (moderasi)' ?>?');" class="inline m-0">
+                                <input type="hidden" name="action" value="moderasi">
+                                <input type="hidden" name="pertanyaan_id" value="<?= (int)$pertanyaan['id'] ?>">
+                                <button type="submit" class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full <?= $pertanyaan['disembunyikan'] ? 'bg-[#DDECCF] hover:bg-[#cbe3b7] text-[#244822]' : 'bg-surface-container-low hover:bg-[#FFDAD6] hover:text-[#93000A] text-on-surface' ?> font-label-md text-label-md font-bold border-[1.5px] border-on-surface shadow-[1.5px_1.5px_0px_#1c1b1b] hover:shadow-[3px_3px_0px_#1c1b1b] active:translate-x-[1px] active:translate-y-[1px] transition-all cursor-pointer">
+                                    <span><?= $pertanyaan['disembunyikan'] ? '👁️ Pulihkan' : '🙈 Sembunyikan' ?></span>
+                                </button>
+                            </form>
                         </div>
                     </div>
 
-                    <div style="display: flex; justify-content: flex-end;">
-                        <button type="submit" class="btn-submit" id="btnKirim">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
-                            Kirim Jawaban
-                        </button>
-                    </div>
-                </form>
-            </section>
-
-        <?php else: ?>
-            <!-- ===============================================================
-                 D. JIKA TIDAK ADA ID: DAFTAR PERTANYAAN UNTUK DIJAWAB / DIMODERASI
-                 =============================================================== -->
-            <section class="card">
-                <div class="section-heading">
-                    <span>Pilih Pertanyaan untuk Dijawab atau Dimoderasi</span>
-                    <span style="font-size: 0.85rem; color: var(--text-dim);"><?= count($semuaPertanyaan) ?> Pertanyaan Terdaftar</span>
-                </div>
-                <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 20px;">
-                    Silakan klik salah satu pertanyaan di bawah untuk membuka form jawaban, melihat daftar tanggapan, atau melakukan moderasi.
-                </p>
-
-                <?php if (empty($semuaPertanyaan)): ?>
-                    <div class="empty-answers">
-                        <div style="font-size: 2.2rem; margin-bottom: 8px;">&#128221;</div>
-                        <h4 style="color: #f1f5f9; margin-bottom: 4px;">Belum Ada Pertanyaan di Database</h4>
-                        <p style="font-size: 0.85rem;">Belum ada data pertanyaan. Anda dapat menambahkan pertanyaan pengujian di bawah.</p>
-                        <div style="margin-top: 16px;">
-                            <a href="../index.php" class="btn-submit" style="text-decoration:none;">Kembali ke Personal Page</a>
+                    <!-- Judul / Isi Pertanyaan Besar -->
+                    <div class="space-y-3">
+                        <div class="inline-flex items-center gap-1 text-primary font-label-sm text-label-sm font-bold tracking-widest uppercase">
+                            <span>✦</span>
+                            <span>Pertanyaan Utama</span>
+                            <span>✧</span>
                         </div>
+                        <h1 class="font-headline-lg text-headline-lg-mobile sm:text-headline-lg text-on-surface tracking-tight leading-snug font-medium italic">
+                            "<?= nl2br(htmlspecialchars($pertanyaan['isi'], ENT_QUOTES, 'UTF-8')) ?>"
+                        </h1>
                     </div>
-                <?php else: ?>
-                    <div>
-                        <?php foreach ($semuaPertanyaan as $p): ?>
-                            <a href="jawab.php?id=<?= (int)$p['id'] ?>" class="q-list-item">
-                                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px;">
-                                    <div class="question-meta">
-                                        <span>Dari: <strong style="color:#e2e8f0;"><?= htmlspecialchars($p['nama_anggota'] ?: $p['nama'], ENT_QUOTES, 'UTF-8') ?></strong></span>
-                                        <span>&bull;</span>
-                                        <span class="route-pill">Node: <?= htmlspecialchars($p['route_id'], ENT_QUOTES, 'UTF-8') ?></span>
-                                        <span>&bull;</span>
-                                        <span><?= date('d M Y, H:i', strtotime($p['created_at'])) ?> WIB</span>
+
+                    <!-- Warning jika pertanyaan sedang dimoderasi -->
+                    <?php if ($pertanyaan['disembunyikan']): ?>
+                        <div class="mt-6 p-4 rounded-xl bg-[#FFF3CD] text-[#856404] border-[1.5px] border-on-surface shadow-[2px_2px_0px_#1c1b1b] flex items-center gap-3">
+                            <span class="text-xl">⚠️</span>
+                            <div class="font-body-sm text-body-sm">
+                                <strong>Status Moderasi Aktif:</strong> Pertanyaan ini sedang disembunyikan dari daftar publik. Anda dapat memulihkannya kembali kapan saja menggunakan tombol di pojok kanan atas.
+                            </div>
+                        </div>
+                    <?php endif; ?>
+                </section>
+
+                <!-- 2. DAFTAR JAWABAN (RESPONSES LIST) -->
+                <section class="mb-8" id="jawaban-terbaru">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-2">
+                            <h2 class="font-headline-md text-headline-md text-on-surface font-semibold tracking-tight">
+                                Tanggapan & Diskusi
+                            </h2>
+                            <span class="px-2.5 py-0.5 rounded-full bg-secondary-container text-on-secondary-container font-label-sm text-label-sm font-bold border-[1px] border-on-surface">
+                                <?= count($daftarJawaban) ?> Jawaban
+                            </span>
+                        </div>
+                        <span class="font-label-sm text-label-sm text-on-surface-variant italic hidden sm:inline">
+                            Diurutkan dari terlama ke terbaru
+                        </span>
+                    </div>
+
+                    <?php if (empty($daftarJawaban)): ?>
+                        <!-- Empty State Stitch -->
+                        <div class="bg-surface-container-lowest border-[1.5px] border-dashed border-on-surface/40 rounded-2xl p-8 text-center shadow-[2px_2px_0px_#1c1b1b]">
+                            <div class="w-12 h-12 rounded-full bg-secondary-container border-[1.5px] border-on-surface text-on-surface flex items-center justify-center font-bold text-2xl mx-auto mb-3 shadow-[2px_2px_0px_#1c1b1b]">
+                                💬
+                            </div>
+                            <h3 class="font-headline-sm text-headline-sm text-on-surface font-medium italic mb-1">
+                                Belum ada jawaban untuk pertanyaan ini
+                            </h3>
+                            <p class="font-body-sm text-body-sm text-on-surface-variant max-w-md mx-auto mb-4">
+                                Jadilah orang pertama yang memberikan tanggapan atau solusi untuk pertanyaan ini melalui form di bawah.
+                            </p>
+                        </div>
+                    <?php else: ?>
+                        <!-- Loop Jawaban -->
+                        <div class="space-y-4">
+                            <?php foreach ($daftarJawaban as $index => $j): ?>
+                                <article class="bg-surface-container-lowest border-[1.5px] border-on-surface rounded-2xl p-5 sm:p-6 shadow-[3px_3px_0px_#1c1b1b] transition-all hover:shadow-[5px_5px_0px_#1c1b1b]">
+                                    <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b-[1.5px] border-on-surface/10 mb-4">
+                                        <div class="flex items-center gap-2.5">
+                                            <div class="w-8 h-8 rounded-full bg-secondary-container border-[1.5px] border-on-surface text-on-surface font-bold text-xs flex items-center justify-center shadow-[1px_1px_0px_#1c1b1b]">
+                                                <?= strtoupper(substr($j['nama_penjawab'] ?: $j['route_id'], 0, 1)) ?>
+                                            </div>
+                                            <div>
+                                                <div class="flex items-center gap-2">
+                                                    <span class="font-label-md text-label-md font-bold text-on-surface">
+                                                        <?= htmlspecialchars($j['nama_penjawab'] ?: 'Anggota ' . $j['route_id'], ENT_QUOTES, 'UTF-8') ?>
+                                                    </span>
+                                                    <span class="px-2 py-0.2 rounded-full bg-surface-container text-on-surface font-label-sm text-label-sm font-mono border-[1px] border-on-surface">
+                                                        Node <?= htmlspecialchars($j['route_id'], ENT_QUOTES, 'UTF-8') ?>
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center gap-1.5 text-on-surface-variant font-label-sm text-label-sm">
+                                            <span>#<?= $index + 1 ?></span>
+                                            <span>•</span>
+                                            <span><?= date('d M Y, H:i', strtotime($j['created_at'])) ?> WIB</span>
+                                        </div>
                                     </div>
-                                    <?php if ($p['disembunyikan']): ?>
-                                        <span class="moderasi-badge badge-hidden">&#128065; Disembunyikan</span>
-                                    <?php else: ?>
-                                        <span class="moderasi-badge badge-active">&#9679; Publik</span>
-                                    <?php endif; ?>
-                                </div>
 
-                                <div class="q-list-title">
-                                    <?= htmlspecialchars(mb_substr($p['isi'], 0, 140)) ?><?= mb_strlen($p['isi']) > 140 ? '...' : '' ?>
-                                </div>
+                                    <div class="font-body-md text-body-md text-on-surface whitespace-pre-wrap leading-relaxed">
+                                        <?= nl2br(htmlspecialchars($j['isi'], ENT_QUOTES, 'UTF-8')) ?>
+                                    </div>
 
-                                <div style="font-size: 0.82rem; color: var(--accent-cyan); display: flex; align-items: center; gap: 12px;">
-                                    <span>&#128172; <?= (int)$p['jumlah_jawaban'] ?> Jawaban</span>
-                                    <span>&bull;</span>
-                                    <span>&#9650; <?= (int)$p['upvote'] ?> Upvote</span>
-                                    <span>&bull;</span>
-                                    <span style="color: #a5b4fc;">Buka Form Jawab & Moderasi &rarr;</span>
-                                </div>
+                                    <div class="mt-4 pt-3 border-t-[1px] border-on-surface/10 flex items-center justify-between text-on-surface-variant font-label-sm text-label-sm">
+                                        <span class="flex items-center gap-1">
+                                            <span class="text-primary">✦</span>
+                                            <span>Tersimpan di node PostgreSQL lokal</span>
+                                        </span>
+                                        <span class="italic font-mono text-outline">
+                                            ID: <?= (int)$j['id'] ?>
+                                        </span>
+                                    </div>
+                                </article>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
+                </section>
+
+                <!-- 3. FORM BERI JAWABAN (STITCH NEO-BRUTALIST FORM) -->
+                <section class="bg-surface-container-lowest border-[1.5px] border-on-surface rounded-2xl p-6 sm:p-8 shadow-[4px_4px_0px_#1c1b1b] relative overflow-hidden">
+                    <div class="space-y-1.5 mb-6">
+                        <div class="inline-flex items-center gap-1.5 text-primary font-label-sm text-label-sm font-bold tracking-widest uppercase">
+                            <span>✦</span>
+                            <span>Berikan Tanggapan / Solusi</span>
+                            <span>✧</span>
+                        </div>
+                        <h2 class="font-display-xl text-display-xl-mobile sm:text-display-xl text-on-surface tracking-tight leading-none italic font-medium">
+                            Tulis Jawabanmu
+                        </h2>
+                        <p class="font-body-md text-body-md text-on-surface-variant pt-1">
+                            Jawaban akan dicatat dengan <code>route_id: <?= htmlspecialchars(MEMBER_ROUTE, ENT_QUOTES, 'UTF-8') ?></code> atas nama <strong><?= htmlspecialchars(MEMBER_NAMA, ENT_QUOTES, 'UTF-8') ?></strong> dan disinkronkan ke PostgreSQL bersama.
+                        </p>
+                    </div>
+
+                    <form id="formJawab" method="POST" action="jawab.php" class="space-y-5" novalidate>
+                        <input type="hidden" name="action" value="jawab">
+                        <input type="hidden" name="pertanyaan_id" value="<?= (int)$pertanyaan['id'] ?>">
+
+                        <!-- Pemilihan Route ID (Default ke identitas lokal) -->
+                        <div class="space-y-2">
+                            <label class="font-label-md text-label-md text-on-surface font-semibold flex items-center justify-between">
+                                <span>Identitas Server Pengirim (Route)</span>
+                                <span class="font-label-sm text-label-sm text-on-surface-variant font-normal">Sesuai arsitektur terdistribusi</span>
+                            </label>
+                            
+                            <div class="flex flex-wrap gap-2 pt-1" id="routePills">
+                                <?php if (!empty($daftarAnggota)): ?>
+                                    <?php foreach ($daftarAnggota as $m): ?>
+                                        <button 
+                                            type="button" 
+                                            class="route-pill-btn px-3.5 py-1.5 rounded-full border-[1.5px] border-on-surface font-label-md text-label-md transition-all <?= $m['route_id'] === MEMBER_ROUTE ? 'bg-primary-container text-on-surface font-bold shadow-[2px_2px_0px_#1c1b1b]' : 'bg-surface-container-lowest text-on-surface-variant hover:text-on-surface shadow-[1px_1px_0px_#1c1b1b]' ?>"
+                                            onclick="selectRoute(this, '<?= htmlspecialchars($m['route_id']) ?>')">
+                                            <?= $m['route_id'] === MEMBER_ROUTE ? '✦ ' : '' ?><?= htmlspecialchars($m['route_id']) ?>: <?= htmlspecialchars($m['nama']) ?>
+                                        </button>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
+                                    <button 
+                                        type="button" 
+                                        class="route-pill-btn px-3.5 py-1.5 rounded-full border-[1.5px] border-on-surface font-label-md text-label-md transition-all bg-primary-container text-on-surface font-bold shadow-[2px_2px_0px_#1c1b1b]"
+                                        onclick="selectRoute(this, '<?= htmlspecialchars(MEMBER_ROUTE) ?>')">
+                                        ✦ <?= htmlspecialchars(MEMBER_ROUTE) ?>: <?= htmlspecialchars(MEMBER_NAMA) ?>
+                                    </button>
+                                <?php endif; ?>
+                            </div>
+                            <input type="hidden" name="route_id" id="selectedRouteId" value="<?= htmlspecialchars(MEMBER_ROUTE) ?>">
+                        </div>
+
+                        <!-- Textarea Jawaban -->
+                        <div class="space-y-1.5">
+                            <div class="flex items-center justify-between">
+                                <label class="font-label-md text-label-md text-on-surface font-semibold flex items-center gap-1" for="inputIsi">
+                                    Isi Jawaban Lengkap <span class="text-error font-bold">*</span>
+                                </label>
+                                <span class="font-label-sm text-label-sm text-on-surface-variant font-mono" id="charCounter">0/5000</span>
+                            </div>
+                            <textarea 
+                                class="w-full bg-surface-container-lowest text-on-surface font-body-md text-body-md p-4 rounded-xl border-[1.5px] border-on-surface placeholder:text-outline/70 focus:outline-none focus:ring-0 focus:shadow-[2px_2px_0px_#1c1b1b] focus:border-on-surface transition-all resize-y min-h-[140px]" 
+                                id="inputIsi" 
+                                name="isi" 
+                                maxlength="5000" 
+                                minlength="3" 
+                                oninput="handleCharCount(this)" 
+                                placeholder="Tuliskan jawaban yang komprehensif, jelas, dan membantu penanya..." 
+                                required 
+                                rows="5"></textarea>
+                            <div class="flex items-center justify-between text-on-surface-variant font-body-sm text-body-sm">
+                                <span class="text-error font-semibold font-label-sm text-label-sm" id="validationMsg"></span>
+                                <span class="font-label-sm text-label-sm text-outline-variant transition-colors" id="minValidationHint">Minimal 3 karakter</span>
+                            </div>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="pt-4 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-3.5 border-t-[1.5px] border-on-surface/20">
+                            <a href="jawab.php" class="inline-flex items-center justify-center font-label-md text-label-md px-5 py-2.5 rounded-full text-on-surface-variant hover:text-on-surface transition-colors text-center">
+                                Batal & Pilih Pertanyaan Lain
                             </a>
-                        <?php endforeach; ?>
+                            <button 
+                                class="inline-flex items-center justify-center gap-2 font-label-lg text-label-lg px-7 py-3 rounded-full bg-primary-container text-on-surface font-bold border-[1.5px] border-on-surface shadow-[2px_2px_0px_#1c1b1b] hover:shadow-[4px_4px_0px_#1c1b1b] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[0px_0px_0px_#1c1b1b] transition-all cursor-pointer" 
+                                type="submit" 
+                                id="btnKirim">
+                                <span>Kirim Jawaban</span>
+                                <span class="text-base font-black">↗</span>
+                            </button>
+                        </div>
+                    </form>
+                </section>
+
+                <!-- Modal Sukses Berbasis URL Parameter (Stitch Pop-up Style) -->
+                <div class="hidden fixed inset-0 z-[70] flex items-center justify-center p-4 bg-on-surface/40 backdrop-blur-sm" id="successModal">
+                    <div class="bg-surface border-[1.5px] border-on-surface rounded-2xl max-w-md w-full p-6 sm:p-8 shadow-[6px_6px_0px_#1c1b1b] relative">
+                        <div class="w-12 h-12 rounded-full bg-[#DDECCF] border-[1.5px] border-on-surface text-[#244822] flex items-center justify-center font-bold text-2xl shadow-[2px_2px_0px_#1c1b1b] mb-4">✓</div>
+                        <div class="space-y-2">
+                            <span class="inline-block px-2.5 py-0.5 rounded-full bg-secondary-container text-on-secondary-container font-label-sm text-label-sm border-[1px] border-on-surface">Status Tersimpan</span>
+                            <h2 class="font-headline-sm text-headline-sm text-on-surface font-semibold">Jawabanmu Berhasil Dikirim!</h2>
+                            <p class="font-body-md text-body-md text-on-surface-variant">
+                                Tanggapan Anda telah tercatat di basis data PostgreSQL dan dapat langsung dilihat oleh seluruh anggota cluster.
+                            </p>
+                        </div>
+                        <div class="mt-6 pt-4 border-t-[1.5px] border-on-surface/20 flex flex-col sm:flex-row gap-3">
+                            <button class="flex-1 py-2.5 px-4 rounded-full bg-primary-container text-on-surface font-label-md text-label-md font-bold border-[1.5px] border-on-surface shadow-[2px_2px_0px_#1c1b1b] text-center cursor-pointer" onclick="closeModal()">Tutup & Lihat Jawaban</button>
+                        </div>
                     </div>
-                <?php endif; ?>
-            </section>
-        <?php endif; ?>
+                </div>
+
+            <?php else: ?>
+                <!-- ===============================================================
+                     TAMPILAN B: JIKA TIDAK ADA ID (DAFTAR PERTANYAAN UNTUK DIJAWAB)
+                     =============================================================== -->
+                <section class="space-y-6">
+                    <div class="space-y-2">
+                        <div class="inline-flex items-center gap-1.5 text-primary font-label-sm text-label-sm font-bold tracking-widest uppercase">
+                            <span>✦</span>
+                            <span>Pilih Pertanyaan untuk Dijawab</span>
+                            <span>✧</span>
+                        </div>
+                        <h1 class="font-display-xl text-display-xl-mobile sm:text-display-xl text-on-surface tracking-tight leading-none italic font-medium">
+                            Daftar Pertanyaan
+                        </h1>
+                        <p class="font-body-md text-body-md text-on-surface-variant max-w-xl">
+                            Pilih salah satu pertanyaan di bawah ini untuk membuka lembar diskusi, memberikan jawaban, atau melakukan moderasi konten.
+                        </p>
+                    </div>
+
+                    <?php if (empty($semuaPertanyaan)): ?>
+                        <div class="bg-surface-container-lowest border-[1.5px] border-dashed border-on-surface/40 rounded-2xl p-10 text-center shadow-[3px_3px_0px_#1c1b1b]">
+                            <div class="w-14 h-14 rounded-full bg-secondary-container border-[1.5px] border-on-surface text-on-surface flex items-center justify-center font-bold text-3xl mx-auto mb-4 shadow-[2px_2px_0px_#1c1b1b]">
+                                📝
+                            </div>
+                            <h3 class="font-headline-sm text-headline-sm text-on-surface font-medium italic mb-2">
+                                Belum ada pertanyaan yang diajukan
+                            </h3>
+                            <p class="font-body-sm text-body-sm text-on-surface-variant max-w-md mx-auto mb-6">
+                                Basis data kelompok saat ini belum memiliki data pertanyaan. Anda dapat membuat pertanyaan baru melalui fitur Tanya.
+                            </p>
+                            <a href="tanya.php" class="inline-flex items-center gap-2 font-label-lg text-label-lg px-6 py-2.5 rounded-full bg-primary-container text-on-surface font-bold border-[1.5px] border-on-surface shadow-[2px_2px_0px_#1c1b1b] hover:shadow-[4px_4px_0px_#1c1b1b] transition-all">
+                                <span>Ajukan Pertanyaan Pertama</span>
+                                <span>↗</span>
+                            </a>
+                        </div>
+                    <?php else: ?>
+                        <div class="grid grid-cols-1 gap-4">
+                            <?php foreach ($semuaPertanyaan as $p): ?>
+                                <article class="bg-surface-container-lowest border-[1.5px] border-on-surface rounded-2xl p-6 shadow-[3px_3px_0px_#1c1b1b] hover:shadow-[5px_5px_0px_#1c1b1b] transition-all flex flex-col justify-between">
+                                    <div>
+                                        <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b-[1px] border-on-surface/15 mb-4">
+                                            <div class="flex flex-wrap items-center gap-2">
+                                                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-secondary-container text-on-surface font-label-sm text-label-sm font-semibold border-[1px] border-on-surface">
+                                                    Dari: <?= htmlspecialchars($p['nama_anggota'] ?: $p['nama'], ENT_QUOTES, 'UTF-8') ?>
+                                                </span>
+                                                <span class="px-2 py-0.5 rounded-full bg-surface-container text-on-surface font-label-sm text-label-sm font-mono border-[1px] border-on-surface">
+                                                    Node <?= htmlspecialchars($p['route_id'], ENT_QUOTES, 'UTF-8') ?>
+                                                </span>
+                                                <span class="text-on-surface-variant font-label-sm text-label-sm">
+                                                    <?= date('d M Y, H:i', strtotime($p['created_at'])) ?> WIB
+                                                </span>
+                                            </div>
+
+                                            <div>
+                                                <?php if ($p['disembunyikan']): ?>
+                                                    <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#FFDAD6] text-[#93000A] font-label-sm text-label-sm font-bold border-[1px] border-on-surface">
+                                                        🔒 Disembunyikan
+                                                    </span>
+                                                <?php else: ?>
+                                                    <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#DDECCF] text-[#244822] font-label-sm text-label-sm font-bold border-[1px] border-on-surface">
+                                                        ● Publik
+                                                    </span>
+                                                <?php endif; ?>
+                                            </div>
+                                        </div>
+
+                                        <h3 class="font-headline-sm text-headline-sm text-on-surface font-medium italic leading-snug mb-3">
+                                            "<?= htmlspecialchars(mb_substr($p['isi'], 0, 160), ENT_QUOTES, 'UTF-8') ?><?= mb_strlen($p['isi']) > 160 ? '...' : '' ?>"
+                                        </h3>
+                                    </div>
+
+                                    <div class="pt-4 border-t-[1px] border-on-surface/10 flex flex-wrap items-center justify-between gap-3">
+                                        <div class="flex items-center gap-3 font-label-sm text-label-sm">
+                                            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-surface-container-low border-[1px] border-on-surface/30 text-on-surface">
+                                                💬 <?= (int)$p['jumlah_jawaban'] ?> Jawaban
+                                            </span>
+                                            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary-container/60 border-[1px] border-on-surface/40 text-on-surface font-bold">
+                                                ▲ <?= (int)$p['upvote'] ?> Upvote
+                                            </span>
+                                        </div>
+
+                                        <a href="jawab.php?id=<?= (int)$p['id'] ?>" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-primary-container text-on-surface font-label-md text-label-md font-bold border-[1.5px] border-on-surface shadow-[1.5px_1.5px_0px_#1c1b1b] hover:shadow-[3px_3px_0px_#1c1b1b] active:translate-x-[1px] active:translate-y-[1px] transition-all">
+                                            <span>Buka & Jawab</span>
+                                            <span>↗</span>
+                                        </a>
+                                    </div>
+                                </article>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
+                </section>
+            <?php endif; ?>
+
+        </div>
     </main>
 
-    <footer>
-        &copy; <?= date('Y') ?> <strong>Kelompok 05</strong> &bull; Komputasi Awan dan Terdistribusi &bull; Node <?= htmlspecialchars(MEMBER_ROUTE, ENT_QUOTES, 'UTF-8') ?>
+    <!-- 4. FOOTER DENGAN GAYA STITCH -->
+    <footer class="w-full bg-surface-container-low border-t-[1.5px] border-on-surface mt-auto">
+        <div class="max-w-[1100px] mx-auto px-gutter py-space-lg flex flex-col md:flex-row items-center justify-between gap-4">
+            <div class="flex items-center gap-2 text-on-surface-variant font-body-sm text-body-sm">
+                <span class="text-primary font-bold">✦</span>
+                <span>Proyek Kelompok Terdistribusi (Kelompok 05)</span>
+                <span class="text-outline-variant">•</span>
+                <span>PHP 8 & PostgreSQL</span>
+                <span class="text-outline-variant">•</span>
+                <span>Node <?= htmlspecialchars(MEMBER_ROUTE) ?></span>
+            </div>
+            <div class="text-on-surface-variant font-label-sm text-label-sm">
+                Laman Personal: <a href="../index.php" class="underline hover:text-on-surface"><?= htmlspecialchars(MEMBER_NAMA) ?> (<?= htmlspecialchars(MEMBER_NIM) ?>)</a>
+            </div>
+        </div>
     </footer>
 
-    <!-- Client-side Validation Script -->
+    <!-- 5. INTERACTIVE SCRIPTING -->
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
+        // Hitung Karakter Realtime & Validasi
+        function handleCharCount(textarea) {
+            const len = textarea.value.length;
+            const counter = document.getElementById('charCounter');
+            const hint = document.getElementById('minValidationHint');
+            const validationMsg = document.getElementById('validationMsg');
+
+            if (counter) counter.textContent = `${len}/5000`;
+
+            if (validationMsg) validationMsg.textContent = '';
+
+            if (hint) {
+                if (len >= 3) {
+                    hint.textContent = 'Minimal karakter terpenuhi ✓';
+                    hint.classList.remove('text-outline-variant');
+                    hint.classList.add('text-[#244822]', 'font-semibold');
+                } else {
+                    hint.textContent = `Minimal 3 karakter (${3 - len} lagi)`;
+                    hint.classList.remove('text-[#244822]', 'font-semibold');
+                    hint.classList.add('text-outline-variant');
+                }
+            }
+        }
+
+        // Pilihan Route ID Penjawab
+        function selectRoute(buttonElement, routeValue) {
+            const routeInput = document.getElementById('selectedRouteId');
+            if (routeInput) routeInput.value = routeValue;
+
+            const allButtons = document.querySelectorAll('.route-pill-btn');
+            allButtons.forEach(btn => {
+                btn.className = "route-pill-btn px-3.5 py-1.5 rounded-full border-[1.5px] border-on-surface font-label-md text-label-md transition-all bg-surface-container-lowest text-on-surface-variant hover:text-on-surface shadow-[1px_1px_0px_#1c1b1b]";
+                btn.textContent = btn.textContent.replace('✦ ', '');
+            });
+
+            buttonElement.className = "route-pill-btn px-3.5 py-1.5 rounded-full border-[1.5px] border-on-surface font-label-md text-label-md transition-all bg-primary-container text-on-surface font-bold shadow-[2px_2px_0px_#1c1b1b]";
+            buttonElement.textContent = '✦ ' + buttonElement.textContent.trim();
+        }
+
+        // Tutup Modal Sukses
+        function closeModal() {
+            const modal = document.getElementById('successModal');
+            if (modal) modal.classList.add('hidden');
+            // Bersihkan parameter dari URL agar tidak memicu modal lagi saat direfresh
+            window.history.replaceState({}, document.title, window.location.pathname + window.location.search.replace(/([&?]status=sukses|&?msg=[^&]*|&?type=[^&]*)/g, ''));
+        }
+
+        // Validasi Submit Form
+        document.addEventListener('DOMContentLoaded', () => {
             const formJawab = document.getElementById('formJawab');
             const inputIsi = document.getElementById('inputIsi');
             const validationMsg = document.getElementById('validationMsg');
-            const charCounter = document.getElementById('charCounter');
             const btnKirim = document.getElementById('btnKirim');
 
-            if (inputIsi && charCounter) {
-                inputIsi.addEventListener('input', function() {
-                    const len = this.value.length;
-                    charCounter.textContent = len + ' / 5000 karakter';
-
-                    if (this.value.trim().length >= 3) {
-                        validationMsg.textContent = '';
-                        btnKirim.disabled = false;
-                    }
-                });
-            }
-
-            if (formJawab) {
-                formJawab.addEventListener('submit', function(e) {
-                    const val = inputIsi.value.trim();
-                    if (!val) {
+            if (formJawab && inputIsi) {
+                formJawab.addEventListener('submit', (e) => {
+                    const text = inputIsi.value.trim();
+                    if (!text) {
                         e.preventDefault();
-                        validationMsg.textContent = 'Isi jawaban tidak boleh kosong!';
+                        if (validationMsg) validationMsg.textContent = 'Isi jawaban tidak boleh kosong!';
+                        inputIsi.focus();
+                        return false;
+                    }
+                    if (text.length < 3) {
+                        e.preventDefault();
+                        if (validationMsg) validationMsg.textContent = 'Isi jawaban minimal 3 karakter!';
                         inputIsi.focus();
                         return false;
                     }
 
-                    if (val.length < 3) {
-                        e.preventDefault();
-                        validationMsg.textContent = 'Jawaban terlalu singkat (minimal 3 karakter).';
-                        inputIsi.focus();
-                        return false;
+                    if (btnKirim) {
+                        btnKirim.disabled = true;
+                        btnKirim.innerHTML = '<span>Mengirimkan...</span>';
                     }
-
-                    btnKirim.disabled = true;
-                    btnKirim.innerHTML = 'Mengirimkan...';
                 });
             }
         });
     </script>
+
+    <?php if (isset($_GET['status']) && $_GET['status'] === 'sukses'): ?>
+        <script>
+            document.addEventListener('DOMContentLoaded', () => {
+                const modal = document.getElementById('successModal');
+                if (modal) modal.classList.remove('hidden');
+            });
+        </script>
+    <?php endif; ?>
+
 </body>
 </html>
