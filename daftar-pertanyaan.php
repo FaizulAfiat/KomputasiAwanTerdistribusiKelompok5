@@ -28,6 +28,7 @@ function formatTanggal($value): string {
 if (empty($_SESSION['qna_csrf'])) {
     $_SESSION['qna_csrf'] = bin2hex(random_bytes(32));
 }
+
 if (!isset($_SESSION['qna_voted']) || !is_array($_SESSION['qna_voted'])) {
     $_SESSION['qna_voted'] = [];
 }
@@ -55,7 +56,6 @@ try {
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['aksi'] ?? '') === 'upvote') {
         $token = (string)($_POST['csrf_token'] ?? '');
         $idPertanyaan = filter_var($_POST['id_pertanyaan'] ?? null, FILTER_VALIDATE_INT);
-
         if (!hash_equals($_SESSION['qna_csrf'], $token)) {
             $_SESSION['qna_flash'] = 'Permintaan tidak valid. Muat ulang halaman lalu coba lagi.';
             $_SESSION['qna_flash_type'] = 'error';
@@ -64,7 +64,9 @@ try {
             $_SESSION['qna_flash_type'] = 'error';
         } elseif (in_array($idPertanyaan, $_SESSION['qna_voted'], true)) {
             $_SESSION['qna_flash'] = 'Kamu sudah memberikan upvote untuk pertanyaan ini dari sesi browser ini.';
+
             $_SESSION['qna_flash_type'] = 'error';
+
         } else {
             $voteStmt = $pdo->prepare(
                 'UPDATE pertanyaan
@@ -124,6 +126,7 @@ try {
     foreach ($params as $key => $value) {
         $stmt->bindValue(':' . $key, $value, PDO::PARAM_STR);
     }
+
     $stmt->bindValue(':batas', $perHalaman, PDO::PARAM_INT);
     $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
     $stmt->execute();
@@ -238,6 +241,10 @@ try {
         .question-tags{display:flex;flex-wrap:wrap;gap:7px}
         .tag{display:inline-flex;align-items:center;padding:4px 9px;border:1px solid #d8d0c3;border-radius:6px;background:#f7f4ed;color:#625a51;font-size:9px}
         .upvote-form{margin:0}
+
+        /* Tombol menuju jawab.php untuk setiap pertanyaan */
+        .answer-link{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:36px;padding:7px 12px;border:1.3px solid var(--ink);border-radius:99px;background:var(--coral);color:var(--ink);font-size:11px;font-weight:700;text-decoration:none;transition:transform .2s,background .2s}
+        .answer-link:hover{background:#ffac8b;transform:translateY(-1px)}
         .upvote-button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:36px;padding:7px 12px;border:1.3px solid var(--ink);border-radius:99px;background:#fffefa;color:var(--ink);font-size:11px;cursor:pointer;transition:background .2s,transform .2s}
         .upvote-button:hover:not(:disabled){transform:translateY(-1px);background:#ffe0d2}
         .upvote-button:disabled{opacity:.7;cursor:default}
@@ -253,11 +260,13 @@ try {
         .footer{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:23px 0 30px;border-top:1px solid #cfc7b9}
         .footer-brand{font-family:"Playfair Display",Georgia,serif;font-size:19px;font-weight:700}
         .footer p{margin:0;color:var(--muted);font-size:11px}.footer-link{color:#5e574e;font-size:11px}
+
         @media(max-width:950px){
             .nav-inner{flex-wrap:wrap;padding:12px 0;gap:12px}.nav-links{order:3;width:100%;justify-content:center}
             .nav-actions{margin-left:auto}.hero{grid-template-columns:minmax(0,1fr) minmax(220px,.7fr);gap:25px;padding-top:45px}
             .stats-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
         }
+
         @media(max-width:650px){
             .container,.nav-inner{width:91%}.nav-actions{gap:8px}.back-link{display:none}
             .nav-actions .btn{min-height:36px;padding:8px 11px;font-size:10px}
@@ -273,6 +282,7 @@ try {
             .upvote-button{min-height:40px}.footer{align-items:flex-start;flex-direction:column}
         }
         @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important}}
+
     </style>
 </head>
 <body>
@@ -301,8 +311,8 @@ try {
         } else {
             echo '<div class="served-by">Personal Q&amp;A Room</div>';
         }
-        ?>
 
+        ?>
         <?php if ($pesan !== ''): ?>
             <div class="alert <?= $jenisPesan === 'success' ? 'alert-success' : 'alert-error' ?>" role="status">
                 <?= $jenisPesan === 'success' ? '✓' : '!' ?> <?= e($pesan) ?>
@@ -412,6 +422,9 @@ try {
                                         <span class="tag">Personal Q&amp;A</span>
                                         <span class="tag">Server: <?= e($item['nama_server'] ?? 'Tidak diketahui') ?></span>
                                     </div>
+
+                                    <!Tombol baru: membuka halaman jawab.php dengan ID pertanyaan>
+                                    <a href="jawab.php?id=<?= (int)$item['id'] ?>" class="answer-link">↗ Jawab Pertanyaan</a>
                                     <form class="upvote-form" method="post" action="<?= e(pageUrl($halaman, $sort, $cari)) ?>">
                                         <input type="hidden" name="aksi" value="upvote">
                                         <input type="hidden" name="id_pertanyaan" value="<?= (int)$item['id'] ?>">
@@ -432,6 +445,7 @@ try {
                 <?php if ($totalHalaman > 1): ?>
                     <nav class="pagination" aria-label="Navigasi halaman">
                         <?php if ($halaman > 1): ?><a class="page-arrow" href="<?= e(pageUrl($halaman - 1, $sort, $cari)) ?>">← Sebelumnya</a><?php endif; ?>
+
                         <?php
                         $start = max(1, $halaman - 2);
                         $end = min($totalHalaman, $halaman + 2);
