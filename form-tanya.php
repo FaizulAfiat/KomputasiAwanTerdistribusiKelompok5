@@ -140,7 +140,11 @@ require_once __DIR__ . '/../identity.php';
                                     <span class="text-base font-black">↗</span>
                                 </button>
                             </div>
+
+                            <a href="daftar-pertanyaan.php" class="answer-link">↗ Lihat Daftar Pertanyaan</a>
+
                         </form>
+
                     </section>
 
                     <!-- Modal Sukses Berbasis PHP / URL Parameter -->

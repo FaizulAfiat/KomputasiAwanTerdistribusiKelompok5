@@ -29,7 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ]);
         
       
-        header("Location: tanya.php?status=sukses");
+        header("Location: form-tanya.php?status=sukses");
         exit;
     } catch (PDOException $e) {
         die("Error saat menyimpan data: " . $e->getMessage());
