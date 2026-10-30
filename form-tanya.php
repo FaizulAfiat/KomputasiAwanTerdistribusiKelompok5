@@ -141,7 +141,7 @@ require_once __DIR__ . '/../identity.php';
                                 </button>
                             </div>
 
-                            <a href="daftar-pertanyaan.php" class="answer-link">↗ Lihat Daftar Pertanyaan</a>
+                            <a href="daftar-pertanyaan.php" class="answer-link">↗ Kembali</a>
 
                         </form>
 
